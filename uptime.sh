@@ -69,14 +69,24 @@ print_usage() {
   echo "  --help       Print this help message"
 }
 
-# Function to calculate duration in hours and minutes
+# Function to calculate and format duration of time
 calculate_duration() {
   local start_time=$1
   local end_time=$2
   local duration=$((end_time - start_time))
-  local hours=$((duration / 3600))
-  local minutes=$(((duration % 3600) / 60))
-  printf '%dh %dm' $hours $minutes
+
+  # ignores time zone changes, daylight saving time, leap seconds, etc.
+  local days=$((duration / 86400))
+  local hours=$(( (duration % 86400) / 3600))
+  local minutes=$(( (duration % 3600) / 60))
+
+  if [ $days -gt 0 ]; then
+    printf '%dd %dh %dm' $days $hours $minutes
+  elif [ $hours -gt 0 ]; then
+    printf '%dh %dm' $hours $minutes
+  else
+    printf '%dm' $minutes
+  fi
 }
 
 # Parse arguments
