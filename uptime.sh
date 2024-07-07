@@ -69,6 +69,16 @@ print_usage() {
   echo "  --help       Print this help message"
 }
 
+# Function to calculate duration in hours and minutes
+calculate_duration() {
+  local start_time=$1
+  local end_time=$2
+  local duration=$((end_time - start_time))
+  local hours=$((duration / 3600))
+  local minutes=$(((duration % 3600) / 60))
+  printf '%dh %dm' $hours $minutes
+}
+
 # Parse arguments
 mode="minute"
 debug="false"
@@ -109,8 +119,10 @@ if [ "$mode" == "summary" ]; then
     status=$(echo "${previous_status[$url]}" | awk '{print $1}')
     timestamp=$(echo "${previous_status[$url]}" | awk '{print $2}')
     if [ "$status" == "$STATUS_DOWN" ]; then
+      current_time=$(date +%s)
+      duration_formatted=$(calculate_duration "$timestamp" "$current_time")
       timestamp_formatted=$(TZ=$timezone date -d "@$timestamp" +"%B %d, %Y %H:%M:%S %Z")
-      down_sites+=("$url is down since $timestamp_formatted")
+      down_sites+=("$url is down since $timestamp_formatted, down for $duration_formatted")
     fi
   done
 
@@ -162,10 +174,7 @@ for url in "${websites[@]}"; do
       current_time_formatted=$(TZ=$timezone date +"%B %d, %Y %H:%M:%S %Z")
       if [ "$current_status" == "$STATUS_UP" ]; then
         # Calculate downtime duration
-        duration=$((current_time - previous_timestamp))
-        hours=$((duration / 3600))
-        minutes=$(((duration % 3600) / 60))
-        duration_formatted=$(printf '%dh %dm' $hours $minutes)
+        duration_formatted=$(calculate_duration "$previous_timestamp" "$current_time")
         send_email "$current_status" "$url" "$duration_formatted" "$current_time_formatted"
       else
         send_email "$current_status" "$url" "" "$current_time_formatted"
