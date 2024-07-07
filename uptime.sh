@@ -48,10 +48,10 @@ send_email() {
   # Prepare the subject and message based on the status
   if [ "$status" == "$STATUS_DOWN" ]; then
     subject="$EMOJI_DOWN [$hostname] DOWN Alert"
-    message="$hostname is down since $timestamp.\n\nHTTP code: $http_code"
+    message="$url is down since $timestamp.\n\nHTTP code: $http_code"
   else
     subject="$EMOJI_UP [$hostname] UP Alert"
-    message="$hostname is UP again at $timestamp, after $duration of downtime."
+    message="$url is UP again at $timestamp, after $duration of downtime."
   fi
 
   # Send the email to all recipients
