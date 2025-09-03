@@ -78,7 +78,9 @@ calculate_duration() {
   # ignores time zone changes, daylight saving time, leap seconds, etc.
   local days=$((duration / 86400))
   local hours=$(( (duration % 86400) / 3600))
-  local minutes=$(( (duration % 3600) / 60))
+  # Round minutes up - if there's any remainder of seconds, count as a full minute
+  local remaining_seconds=$(( duration % 3600 ))
+  local minutes=$(( (remaining_seconds + 59) / 60 ))
 
   if [ $days -gt 0 ]; then
     printf '%dd %dh %dm' $days $hours $minutes
