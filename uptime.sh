@@ -21,6 +21,8 @@ websites=(
 
 # Temporary file to store the previous status of websites
 status_file="/tmp/websites_status.txt"
+# Lock file to prevent concurrent execution
+lock_file="/tmp/uptime_monitor.lock"
 # Ensure the status file exists
 touch $status_file
 
@@ -31,6 +33,44 @@ STATUS_DOWN="down"
 # Status emojis
 EMOJI_UP="\xE2\x9C\x85" # Green check mark
 EMOJI_DOWN="\xF0\x9F\x94\xB4" # Red circle
+
+# Function to acquire lock
+acquire_lock() {
+  # Check if lock file exists
+  if [ -f "$lock_file" ]; then
+    local existing_pid=$(cat "$lock_file" 2>/dev/null)
+
+    # Check if the process is still running
+    if [ -n "$existing_pid" ] && kill -0 "$existing_pid" 2>/dev/null; then
+      echo "Another instance of the script is already running (PID: $existing_pid)"
+      echo "If you're sure no other instance is running, remove: $lock_file"
+      exit 1
+    else
+      # Stale lock file, remove it
+      [ "$debug" == "true" ] && echo "Removing stale lock file (PID $existing_pid no longer exists)"
+      rm -f "$lock_file"
+    fi
+  fi
+
+  # Create lock file with current PID
+  echo $$ > "$lock_file"
+  [ "$debug" == "true" ] && echo "Acquired lock (PID: $$)"
+}
+
+# Function to release lock
+release_lock() {
+  if [ -f "$lock_file" ]; then
+    local lock_pid=$(cat "$lock_file" 2>/dev/null)
+    # Only remove lock if it's ours
+    if [ "$lock_pid" = "$$" ]; then
+      rm -f "$lock_file"
+      [ "$debug" == "true" ] && echo "Released lock (PID: $$)"
+    fi
+  fi
+}
+
+# Set up trap to cleanup lock file on exit
+trap 'release_lock; exit' INT TERM EXIT
 
 # Function to check the status of a website with retry logic
 check_website() {
@@ -149,6 +189,9 @@ for arg in "$@"; do
   esac
 done
 
+# Acquire lock to prevent concurrent execution
+acquire_lock
+
 if [ "$mode" == "summary" ]; then
   [ "$debug" == "true" ] && echo "Reading previous status for summary..."
   # Read previous status into an associative array
@@ -232,7 +275,7 @@ for url in "${websites[@]}"; do
     # Compare with previous status to detect changes and handle grace period
   current_failure_count=0
   send_alert=false
-  
+
   if [[ -n "${previous_status[$url]}" ]]; then
     previous_status_value=$(echo "${previous_status[$url]}" | awk '{print $1}')
     previous_timestamp=$(echo "${previous_status[$url]}" | awk '{print $2}')
@@ -245,7 +288,7 @@ for url in "${websites[@]}"; do
         current_failure_count=$((previous_failure_count + 1))
         current_time=$previous_timestamp
         [ "$debug" == "true" ] && echo "Site $url still down, failure count: $current_failure_count"
-        
+
         # Send alert only when crossing the grace period threshold
         if [ "$current_failure_count" -eq "$grace_period" ]; then
           send_alert=true
@@ -257,7 +300,7 @@ for url in "${websites[@]}"; do
         current_failure_count=1
         current_time=$(date +%s)
         [ "$debug" == "true" ] && echo "Site $url just went down, failure count: $current_failure_count"
-        
+
         # Send immediate alert if grace period is 1
         if [ "$grace_period" -eq 1 ]; then
           send_alert=true
@@ -272,7 +315,7 @@ for url in "${websites[@]}"; do
         # Site came back up - use new timestamp
         current_time=$(date +%s)
         current_time_formatted=$(TZ=$timezone date +"%B %d, %Y %H:%M:%S %Z")
-        
+
         # Send "up" alert only if we had previously sent a "down" alert
         if [ "$previous_failure_count" -ge "$grace_period" ]; then
           send_alert=true
@@ -292,7 +335,7 @@ for url in "${websites[@]}"; do
     if [ "$current_status" == "$STATUS_DOWN" ]; then
       current_failure_count=1
       [ "$debug" == "true" ] && echo "First check for $url shows it's down, failure count: $current_failure_count"
-      
+
       # Send immediate alert only if grace period is 1
       if [ "$grace_period" -eq 1 ]; then
         send_alert=true
