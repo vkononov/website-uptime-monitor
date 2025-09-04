@@ -189,9 +189,6 @@ for arg in "$@"; do
   esac
 done
 
-# Acquire lock to prevent concurrent execution
-acquire_lock
-
 if [ "$mode" == "summary" ]; then
   [ "$debug" == "true" ] && echo "Reading previous status for summary..."
   # Read previous status into an associative array
@@ -232,6 +229,9 @@ if [ "$mode" == "summary" ]; then
   fi
   exit 0
 fi
+
+# Acquire lock to prevent concurrent execution (only for main monitoring mode)
+acquire_lock
 
 # Read previous status into an associative array
 declare -A previous_status
